@@ -224,6 +224,45 @@ class Conversation:
             print(f'unknown message: {message}')
 
 
+@retry(wait=wait_random_exponential(multiplier=1, max=40), stop=stop_after_attempt(3))
+def get_current_weather(args):
+    key = api_keys["WEATHERAPI_KEY"]
+    loc = args['location']
+    url = f'http://api.weatherapi.com/v1/current.json?key={key}&q={loc}'
+
+    try:
+        response = requests.get(url)
+        return response.json()
+    except Exception as e:
+        print('Unable to retrieve current weather.')
+        print(f'Exception: {e}')
+        return e
+
+@retry(wait=wait_random_exponential(multiplier=1, max=40), stop=stop_after_attempt(3))
+def get_weather_forecast(args):
+    key = api_keys["WEATHERAPI_KEY"]
+    loc = args['location']
+    days = args['days']
+    url = f'http://api.weatherapi.com/v1/forecast.json?key={key}&q={loc}&days={days}'
+
+    try:
+        response = requests.get(url)
+        return response.json()
+    except Exception as e:
+        print(f'Unable to retrieve {days}-day forecast.')
+        print(f'Exception: {e}')
+        return e
+
+
+def ui_say_hello():
+    print(colored(f'{agent_name}:', cli_colors['assistant']))
+    print(ui_welcome_msg)
+
+def ui_say_goodbye():
+    print(colored(f'{agent_name}:', cli_colors['assistant']))
+    print(ui_exit_msg)
+
+
 tools = [
     # to add astronomy data (moon phases, etc.): https://www.weatherapi.com/api-explorer.aspx#astronomy
     # to add historical weather data: https://www.weatherapi.com/api-explorer.aspx#history
@@ -266,44 +305,6 @@ tools = [
         },
     },
 ]
-
-@retry(wait=wait_random_exponential(multiplier=1, max=40), stop=stop_after_attempt(3))
-def get_current_weather(args):
-    key = api_keys["WEATHERAPI_KEY"]
-    loc = args['location']
-    url = f'http://api.weatherapi.com/v1/current.json?key={key}&q={loc}'
-
-    try:
-        response = requests.get(url)
-        return response.json()
-    except Exception as e:
-        print('Unable to retrieve current weather.')
-        print(f'Exception: {e}')
-        return e
-
-@retry(wait=wait_random_exponential(multiplier=1, max=40), stop=stop_after_attempt(3))
-def get_weather_forecast(args):
-    key = api_keys["WEATHERAPI_KEY"]
-    loc = args['location']
-    days = args['days']
-    url = f'http://api.weatherapi.com/v1/forecast.json?key={key}&q={loc}&days={days}'
-
-    try:
-        response = requests.get(url)
-        return response.json()
-    except Exception as e:
-        print(f'Unable to retrieve {args["days"]}-day forecast.')
-        print(f'Exception: {e}')
-        return e
-
-
-def ui_say_hello():
-    print(colored(f'{agent_name}:', cli_colors['assistant']))
-    print(ui_welcome_msg)
-
-def ui_say_goodbye():
-    print(colored(f'{agent_name}:', cli_colors['assistant']))
-    print(ui_exit_msg)
 
 
 if __name__ == '__main__':
