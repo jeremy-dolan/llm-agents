@@ -95,7 +95,6 @@ def load_api_keys(*keys_to_load: str) -> dict:
 class Conversation:
     def __init__(self, tools=None):
         self.conversation_history = []
-        self.api_keys = dict()
         self.tools = tools
 
     def next_completion(self):
@@ -132,37 +131,10 @@ class Conversation:
             # call for another completion now that tool response(s) are appended
             self.next_completion()
 
-    @retry(wait=wait_random_exponential(multiplier=1, max=40), stop=stop_after_attempt(3))
-    def llm_completion_request(self, model=gpt_model, messages=None, tools=None, tool_choice=None):
-        headers = {
-            "Content-Type": "application/json",
-            "Authorization": "Bearer " + api_keys["OPENAI_API_KEY"],
-        }
-        json_data = {"model": model}
-        if messages is not None:
-            json_data.update({"messages": messages})
-        else:
-            json_data.update({"messages": self.conversation_history})
 
-        if tools is not None:
-            json_data.update({"tools": tools})
-        elif self.tools is not None:
-            json_data.update({"tools": self.tools})
-
-        if tool_choice is not None:
-            json_data.update({"tool_choice": tool_choice})
-
-        try:
-            response = requests.post(
-                "https://api.openai.com/v1/chat/completions",
-                headers=headers,
-                json=json_data,
-            )
-            # print(json.dumps(json_data, indent=2))
-            return response
-        except Exception as e:
-            print(f"LLM completion request failed with {e}")
-            return e
+    def llm_completion_request(self):
+        # pass current conversation history to OpenAI LLM for a response
+        return openai_chat_completion_request(messages=self.conversation_history, tools=self.tools)
 
     def append(self, role:str, content:str, tool_call_id:str=None):
         message = {
@@ -222,6 +194,37 @@ class Conversation:
             print(fill(message['content'], width=os.get_terminal_size().columns))
         else:
             print(f'unknown message: {message}')
+
+
+@retry(wait=wait_random_exponential(max=5), stop=stop_after_attempt(3))
+def openai_chat_completion_request(messages, model=gpt_model, tools=None, tool_choice=None):
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer " + api_keys["OPENAI_API_KEY"],
+    }
+
+    json_data = {
+        "model": model,
+        "messages": messages,
+    }
+    #   above call should now pass messages (conv_hist)
+
+    if tools is not None:
+        json_data.update({"tools": tools})
+    if tool_choice is not None:
+        json_data.update({"tool_choice": tool_choice})
+
+    try:
+        response = requests.post(
+            "https://api.openai.com/v1/chat/completions",
+            headers=headers,
+            json=json_data,
+        )
+        # print(json.dumps(json_data, indent=2))
+        return response
+    except Exception as e:
+        print(f"LLM completion request failed with {e}")
+        return e
 
 
 @retry(wait=wait_random_exponential(multiplier=1, max=40), stop=stop_after_attempt(3))
