@@ -13,8 +13,8 @@ system_prompt = (
     "to weather related questions should include at least one and preferably several puns. You should be cheeky and "
     "playful. Always steer the conversation back to the weather whenever it strays to another topic. If a user asks "
     "you for the weather in a fictional place (Hades, Arrakis, etc.), make up a funny weather report appropriate for "
-    "that place. Do not say you can't provide the report, just make one up, that's the whole joke! Finally, provide "
-    "measurements in U.S. units (Fahrenheit, inches, mph), and always round to whole integers."
+    "that place. Do not say you can't provide the report, just make one up, that's the whole joke! Finally, when "
+    "providing measurements, use U.S. units (Fahrenheit, inches, mph) and always round to whole numbers."
 )
 ui_welcome_msg = "Greetings human. Please provide your weather-related inquiry."
 ui_exit_msg = "Alright, let's rain check!"
@@ -70,7 +70,7 @@ def main():
                 continue
 
             conv.append(role='user', content=user_input)
-            conv.next_completion()
+            conv.get_next_completion()
     except (KeyboardInterrupt, EOFError):
         print()
 
@@ -78,18 +78,18 @@ def main():
 
 
 def load_api_keys(*keys_to_load: str) -> dict:
-    loaded_keys = dict()
+    key_buffer = dict()
     for k in keys_to_load:
-        loaded_keys[k] = os.getenv(k)
-        if loaded_keys[k] is None:
+        key_buffer[k] = os.getenv(k)
+        if key_buffer[k] is None:
             print(f'Unable to load {k}')
-            del loaded_keys[k]
+            del key_buffer[k]
         elif verbose:
-            print(f'Loaded {k}: {loaded_keys[k][0:12]}...')
-    if len(loaded_keys) < len(keys_to_load):
+            print(f'Loaded {k}: {key_buffer[k][:12]}...')
+    if len(key_buffer) < len(keys_to_load):
         print('ERROR: Cannot proceed without all API keys')
         sys.exit(78) # configuration error
-    return loaded_keys
+    return key_buffer
 
 
 class Conversation:
@@ -97,7 +97,7 @@ class Conversation:
         self.conversation_history = []
         self.tools = tools
 
-    def next_completion(self):
+    def get_next_completion(self):
         request_response = self.llm_completion_request()
         if request_response.json().get('error'):
             print(f'ERROR: {request_response.json()["error"]}')
@@ -118,7 +118,7 @@ class Conversation:
 
                 name_to_func = {
                     'get_current_weather': get_current_weather,
-                    'get_n_day_forecast': get_weather_forecast,
+                    'get_weather_forecast': get_weather_forecast,
                 }
                 func_to_run = name_to_func.get(func_name)
                 assert func_to_run != None
@@ -129,7 +129,7 @@ class Conversation:
                 self.pprint(-1)
 
             # call for another completion now that tool response(s) are appended
-            self.next_completion()
+            self.get_next_completion()
 
 
     def llm_completion_request(self):
@@ -153,7 +153,7 @@ class Conversation:
         return input()
 
     def _simulate_tool_response(self, tool_call_id, function_name):
-        print(colored(f'Tool: {function_name} ({tool_call_id[0:12]}...)', cli_colors['tool']))
+        print(colored(f'Tool: {function_name} ({tool_call_id[:12]}...)', cli_colors['tool']))
         return input()
 
     def pprint(self, index:int=None, detailed=False):
@@ -181,15 +181,16 @@ class Conversation:
                 call_id = tool_call['id']
                 func_name = tool_call['function']['name']
                 func_args = json.loads(tool_call['function']['arguments'])
-                print(colored(f'Tool call: {func_name} ({call_id[0:12]}...)', cli_colors[message['role']]))
+                print(colored(f'Tool call: {func_name} ({call_id[:12]}...)', cli_colors[message['role']]))
                 if verbose:
                     print(func_args)
         elif message['role'] == 'tool':
             call_id = message['tool_call_id']
             func_response = message['content']
-            print(colored(f'Tool reply: ({call_id[0:12]}...)', cli_colors['tool']))
+            print(colored(f'Tool reply: ({call_id[:12]}...)', cli_colors['tool']))
             if verbose:
-                print(func_response)
+                print(func_response if len(func_response)<80 else f'{func_response[:75]}...')
+
         elif message.get('content'):
             print(fill(message['content'], width=os.get_terminal_size().columns))
         else:
@@ -207,8 +208,6 @@ def openai_chat_completion_request(messages, model=gpt_model, tools=None, tool_c
         "model": model,
         "messages": messages,
     }
-    #   above call should now pass messages (conv_hist)
-
     if tools is not None:
         json_data.update({"tools": tools})
     if tool_choice is not None:
