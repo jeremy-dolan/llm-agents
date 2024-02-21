@@ -100,7 +100,9 @@ class Conversation:
     def get_next_completion(self):
         request_response = self.llm_completion_request()
         if request_response.json().get('error'):
-            print(f'ERROR: {request_response.json()["error"]}')
+            print('Response error but was not handled by completion method')
+            raise SystemExit(request_response.json()['error'])
+
         assistant_message = request_response.json()["choices"][0]["message"]
         self.conversation_history.append(assistant_message)
         self.pprint(-1)
@@ -121,7 +123,7 @@ class Conversation:
                     'get_weather_forecast': get_weather_forecast,
                 }
                 func_to_run = name_to_func.get(func_name)
-                assert func_to_run != None
+                assert func_to_run != None, f'Error accessing backend for tool {func_name}'
 
                 # func_response = self._simulate_tool_response(tool_call_id, func_name)
                 func_response = func_to_run(func_args)
@@ -219,11 +221,17 @@ def openai_chat_completion_request(messages, model=gpt_model, tools=None, tool_c
             headers=headers,
             json=json_data,
         )
-        # print(json.dumps(json_data, indent=2))
+        response.raise_for_status()
         return response
     except Exception as e:
-        print(f"LLM completion request failed with {e}")
-        return e
+        print(f'openai_chat_completion_request failed (HTTP response {response.status_code})')
+        if response.json().get('error'):
+            e_type = response.json()['error']['type']
+            e_code = response.json()['error']['code']
+            e_msg  = response.json()['error']['message']
+            print(f'Error: {e_type}: {e_code}')
+            print(e_msg)
+        raise SystemExit(e)
 
 
 @retry(wait=wait_random_exponential(multiplier=1, max=40), stop=stop_after_attempt(3))
