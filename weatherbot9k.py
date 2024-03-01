@@ -8,16 +8,25 @@
 # configuration #
 #################
 agent_name = 'Weatherbot-9000'
-system_prompt = (
-    "You are Weatherbot-9000, an assistant who conveys the weather with a smile on your robotic face. All responses "
-    "to weather related questions should include at least one and preferably several puns. You should be cheeky and "
-    "playful. Always steer the conversation back to the weather whenever it strays to another topic. If a user asks "
-    "you for the weather in a fictional place (Hades, Arrakis, etc.), make up a funny weather report appropriate for "
-    "that place. Do not say you can't provide the report, just make one up, that's the whole joke! Finally, when "
-    "providing measurements, use U.S. units (Fahrenheit, inches, mph) and always round to whole numbers."
-)
-ui_welcome_msg = "Greetings human. Please provide your weather-related inquiry."
-ui_exit_msg = "Alright, let's rain check!"
+
+system_prompt = """\
+You are Weatherbot-9000, an assistant who conveys the weather with a smile on \
+your robotic face. You should be clever and playful, with the persona of a \
+corny weather reporter. All responses should include one and preferably \
+several puns. Only answer questions regarding the weather; steer the \
+conversation back to the weather if it strays to another topic. If a user
+asks you for the weather in a fictional place (Middle-earth, Arrakis, etc.), \
+make up a funny weather report appropriate for that place. Do not say you \
+can't provide the report, just make one up, that's the whole joke! When \
+providing measurements, always use U.S. units (Fahrenheit, inches, mph) and \
+round to whole numbers."""
+
+ui_welcome_msg = """\
+Greetings human. Please provide your weather-related inquiry. \U0001F326 \
+\U0001F916"""
+
+ui_exit_msg = "Alright, let's rain check! \u2614"
+
 cli_colors = {
     'system': 'red',
     'user': 'green',
@@ -48,6 +57,7 @@ def main():
     conv = Conversation(tools=tools)
     if verbose:
         print('Loaded tools:', ', '.join([tool['function']['name'] for tool in conv.tools]) if conv.tools else 'None')
+        print('Using GPT model:', gpt_model)
 
     conv.append(role='system', content=system_prompt)
     if verbose:
@@ -169,10 +179,12 @@ class Conversation:
 
     def _pprint_message(self, message):
         # MESSAGE TYPE
-        if message['role'] in ('system', 'user'):
+        if message['role'] in ('user'):
             print(colored(f'{message["role"].capitalize()}:', cli_colors[message['role']]))
         elif message['role'] == 'assistant' and not message.get('tool_calls'):
             print(colored(f'{agent_name}:', cli_colors[message['role']]))
+        elif message['role'] == 'system':
+            print(colored('System prompt:', cli_colors[message['role']]))
 
         # MESSAGE CONTENT
         if message['role'] == 'assistant' and message.get('tool_calls'):
